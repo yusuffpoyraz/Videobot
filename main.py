@@ -7,6 +7,31 @@ from flask import Flask
 from threading import Thread
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
+import subprocess
+import shutil
+
+def ensure_ffmpeg():
+    """Checks for FFmpeg and installs it if missing (Only for Render Linux environment)"""
+    ffmpeg_bin = os.path.join(os.getcwd(), "ffmpeg", "ffmpeg")
+    
+    if not os.path.exists(ffmpeg_bin):
+        print("⚠️ FFmpeg not found! Starting emergency installation...", flush=True)
+        try:
+            # Create directory
+            os.makedirs("ffmpeg", exist_ok=True)
+            # Download and extract in one command
+            cmd = (
+                "curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz | "
+                "tar xJ -C ffmpeg --strip-components=1"
+            )
+            subprocess.run(cmd, shell=True, check=True)
+            # Give execution permissions
+            subprocess.run("chmod -R +x ffmpeg/", shell=True, check=True)
+            print("✅ FFmpeg emergency installation successful!", flush=True)
+        except Exception as e:
+            print(f"❌ Emergency installation failed: {e}", flush=True)
+    else:
+        print(f"✅ FFmpeg is already present at: {ffmpeg_bin}", flush=True)
 
 # --- LOGGING CONFIGURATION ---
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
