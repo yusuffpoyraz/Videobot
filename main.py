@@ -30,7 +30,8 @@ def start_keep_alive():
 
 # --- CONFIGURATION & PATHS ---
 TOKEN = os.getenv("TOKEN")
-FFMPEG_PATH = os.path.join(os.getcwd(), "ffmpeg", "ffmpeg")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FFMPEG_PATH = os.path.join(BASE_DIR, "ffmpeg", "ffmpeg")
 
 # --- CORE ENGINE: MEDIA DOWNLOADER ---
 def download_media(url, mode, quality='720'):
