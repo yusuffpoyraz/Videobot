@@ -1,6 +1,7 @@
 # 🤖 Universal Media Downloader Telegram Bot
 
 A high-performance Telegram bot built with **Python**, **python-telegram-bot**, and **yt-dlp** that allows users to download video and audio from 1000+ social media platforms including YouTube, Instagram, TikTok, and Twitter.
+
 This tool is for educational purposes and personal use only. Users are responsible for respecting the copyright and terms of service of the respective platforms
 
 ## ✨ Features
