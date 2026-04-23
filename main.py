@@ -10,6 +10,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 import subprocess
 import shutil
 
+# --- FFMPEG EMERGENCY CHECK ---
 def ensure_ffmpeg():
     """Checks for FFmpeg and installs it if missing (Only for Render Linux environment)"""
     ffmpeg_bin = os.path.join(os.getcwd(), "ffmpeg", "ffmpeg")
@@ -17,15 +18,12 @@ def ensure_ffmpeg():
     if not os.path.exists(ffmpeg_bin):
         print("⚠️ FFmpeg not found! Starting emergency installation...", flush=True)
         try:
-            # Create directory
             os.makedirs("ffmpeg", exist_ok=True)
-            # Download and extract in one command
             cmd = (
                 "curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz | "
                 "tar xJ -C ffmpeg --strip-components=1"
             )
             subprocess.run(cmd, shell=True, check=True)
-            # Give execution permissions
             subprocess.run("chmod -R +x ffmpeg/", shell=True, check=True)
             print("✅ FFmpeg emergency installation successful!", flush=True)
         except Exception as e:
@@ -45,7 +43,6 @@ def home():
     return "Universal Downloader Bot is Active!"
 
 def run_flask():
-    # Render dynamic port binding
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
@@ -59,31 +56,28 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FFMPEG_DIR = os.path.join(BASE_DIR, "ffmpeg")
 FFMPEG_PATH = os.path.join(FFMPEG_DIR, "ffmpeg")
 
-# Dynamic PATH integration for Linux environments
+# Dynamic PATH integration
 if FFMPEG_DIR not in os.environ["PATH"]:
     os.environ["PATH"] += os.pathsep + FFMPEG_DIR
 
 # --- CORE ENGINE: MEDIA DOWNLOADER ---
 def download_media(url, mode, quality='720'):
-    """Handles extraction and merging using yt-dlp and verified FFmpeg path."""
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
     
-    # Path Verification Log
     if not os.path.exists(FFMPEG_PATH):
         logger.error(f"FFmpeg binary not found at {FFMPEG_PATH}")
         raise FileNotFoundError("FFmpeg binary missing on server.")
 
+    # BURADAKİ PARANTEZ HATASI DÜZELTİLDİ:
     ydl_opts = {
-    'outtmpl': 'downloads/%(title)s.%(ext)s',
-    'ffmpeg_location': FFMPEG_PATH,
-    'quiet': True,
-    'no_warnings': True,
-    'nocheckcertificate': True,
-    # YouTube engelini aşmak için alternatif istemci kullan:
-    'extractor_args': {'youtube': {'player_client': ['android', 'web']}}, 
-    'prefer_ffmpeg': True,
-}
+        'outtmpl': 'downloads/%(title)s.%(ext)s',
+        'ffmpeg_location': FFMPEG_PATH,
+        'quiet': True,
+        'no_warnings': True,
+        'nocheckcertificate': True,
+        'extractor_args': {'youtube': {'player_client': ['android', 'web']}}, 
+        'prefer_ffmpeg': True,
     }
 
     if mode == 'audio':
@@ -106,8 +100,6 @@ def download_media(url, mode, quality='720'):
         info = ydl.extract_info(url, download=True)
         filename = ydl.prepare_filename(info)
         base, _ = os.path.splitext(filename)
-        
-        # Extension handling after FFmpeg processing
         final_ext = ".mp3" if mode == 'audio' else ".mp4"
         return f"{base}{final_ext}"
 
@@ -166,9 +158,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- APPLICATION ENTRY POINT ---
 async def main():
     if not TOKEN:
-        logger.error("No TOKEN environment variable found!")
+        logger.error("No TOKEN found!")
         return
 
+    # Emergency check calls here
+    ensure_ffmpeg()
     start_keep_alive()
     
     bot_app = Application.builder().token(TOKEN).build()
