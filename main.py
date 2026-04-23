@@ -2,19 +2,17 @@ import os
 import asyncio
 import logging
 import yt_dlp
+import sys
 from flask import Flask
 from threading import Thread
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
 
 # --- LOGGING CONFIGURATION ---
-# Setting up logging to monitor bot activity and errors in production
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- WEB SERVER FOR UPTIME (KEEP ALIVE) ---
-# Render puts free instances to sleep after 15 mins of inactivity.
-# This Flask server creates a dummy web endpoint to monitor uptime.
 app = Flask('')
 
 @app.route('/')
@@ -22,7 +20,9 @@ def home():
     return "Universal Downloader Bot is Active!"
 
 def run_flask():
-    app.run(host='0.0.0.0', port=8080)
+    # Render dynamic port binding
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
 
 def start_keep_alive():
     t = Thread(target=run_flask)
@@ -31,19 +31,30 @@ def start_keep_alive():
 # --- CONFIGURATION & PATHS ---
 TOKEN = os.getenv("TOKEN")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FFMPEG_PATH = os.path.join(BASE_DIR, "ffmpeg", "ffmpeg")
+FFMPEG_DIR = os.path.join(BASE_DIR, "ffmpeg")
+FFMPEG_PATH = os.path.join(FFMPEG_DIR, "ffmpeg")
+
+# Dynamic PATH integration for Linux environments
+if FFMPEG_DIR not in os.environ["PATH"]:
+    os.environ["PATH"] += os.pathsep + FFMPEG_DIR
 
 # --- CORE ENGINE: MEDIA DOWNLOADER ---
 def download_media(url, mode, quality='720'):
-    """Handles the extraction and conversion logic using yt-dlp and FFmpeg."""
+    """Handles extraction and merging using yt-dlp and verified FFmpeg path."""
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
     
+    # Path Verification Log
+    if not os.path.exists(FFMPEG_PATH):
+        logger.error(f"FFmpeg binary not found at {FFMPEG_PATH}")
+        raise FileNotFoundError("FFmpeg binary missing on server.")
+
     ydl_opts = {
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'ffmpeg_location': FFMPEG_PATH,
         'quiet': True,
         'no_warnings': True,
+        'prefer_ffmpeg': True,
     }
 
     if mode == 'audio':
@@ -66,20 +77,21 @@ def download_media(url, mode, quality='720'):
         info = ydl.extract_info(url, download=True)
         filename = ydl.prepare_filename(info)
         base, _ = os.path.splitext(filename)
-        return f"{base}.mp3" if mode == 'audio' else f"{base}.mp4"
+        
+        # Extension handling after FFmpeg processing
+        final_ext = ".mp3" if mode == 'audio' else ".mp4"
+        return f"{base}{final_ext}"
 
 # --- TELEGRAM BOT HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Sends a professional welcome message to the user."""
     welcome_text = (
         "<b>Universal Media Downloader</b> 🚀\n\n"
-        "I can download videos and audio from 1000+ platforms (YouTube, Instagram, TikTok, etc.).\n"
-        "Please send a valid link to begin."
+        "Download videos/audio from 1000+ platforms.\n"
+        "Simply send a link to start."
     )
     await update.message.reply_html(welcome_text)
 
 async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Detects URLs and prompts for format selection."""
     url = update.message.text
     if not url.startswith("http"):
         return
@@ -92,7 +104,6 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Select conversion format:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles callback queries for format and quality selection."""
     query = update.callback_query
     await query.answer()
     url = context.user_data.get('url')
@@ -106,44 +117,41 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("Select Video Quality:", reply_markup=InlineKeyboardMarkup(keyboard))
     
     else:
-        # Processing Phase
-        status_msg = await query.edit_message_text("⚡ Processing your request... Please wait.")
+        status_msg = await query.edit_message_text("⚡ Processing... Please wait.")
         try:
             mode = 'audio' if query.data == 'a_dl' else 'video'
             quality = query.data.split('_')[1] if mode == 'video' else None
             
-            # Using loop executor to keep the bot responsive during I/O bound download
             loop = asyncio.get_event_loop()
             file_path = await loop.run_in_executor(None, download_media, url, mode, quality)
 
             await query.message.reply_chat_action("upload_document")
             with open(file_path, 'rb') as f:
-                await query.message.reply_document(document=f, caption="✅ Media successfully processed.")
+                await query.message.reply_document(document=f, caption="✅ Processed Successfully.")
             
-            # Auto-cleanup to save server space
             os.remove(file_path)
         except Exception as e:
             logger.error(f"Download error: {e}")
-            await query.message.reply_text("❌ An error occurred. The link might be private or unsupported.")
+            await query.message.reply_text(f"❌ Error: {str(e)[:100]}")
 
 # --- APPLICATION ENTRY POINT ---
 async def main():
-    """Initializes and runs the Telegram Bot Application."""
-    start_keep_alive() # Launch Flask server
+    if not TOKEN:
+        logger.error("No TOKEN environment variable found!")
+        return
+
+    start_keep_alive()
     
     bot_app = Application.builder().token(TOKEN).build()
-    
-    # Handlers
     bot_app.add_handler(CommandHandler("start", start))
     bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_url))
     bot_app.add_handler(CallbackQueryHandler(button_handler))
     
-    # Starting Polling
+    logger.info("Bot is starting...")
     await bot_app.initialize()
     await bot_app.updater.start_polling()
     await bot_app.start()
     
-    # Run indefinitely
     while True:
         await asyncio.sleep(1)
 
