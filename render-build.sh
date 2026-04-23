@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Render Build Script - Installs Python dependencies and FFmpeg binaries
-set -o errexit
+set -e
 
 # Install python dependencies
 pip install -r requirements.txt
 
-# Download and extract FFmpeg static binaries for Linux
+# Download and extract FFmpeg static binaries
 mkdir -p ffmpeg
-curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz | tar xJ -C ffmpeg --strip-components 1
+curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz | tar xJ -C ffmpeg --strip-components=1
