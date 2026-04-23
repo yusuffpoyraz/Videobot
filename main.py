@@ -75,11 +75,15 @@ def download_media(url, mode, quality='720'):
         raise FileNotFoundError("FFmpeg binary missing on server.")
 
     ydl_opts = {
-        'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'ffmpeg_location': FFMPEG_PATH,
-        'quiet': True,
-        'no_warnings': True,
-        'prefer_ffmpeg': True,
+    'outtmpl': 'downloads/%(title)s.%(ext)s',
+    'ffmpeg_location': FFMPEG_PATH,
+    'quiet': True,
+    'no_warnings': True,
+    'nocheckcertificate': True,
+    # YouTube engelini aşmak için alternatif istemci kullan:
+    'extractor_args': {'youtube': {'player_client': ['android', 'web']}}, 
+    'prefer_ffmpeg': True,
+}
     }
 
     if mode == 'audio':
